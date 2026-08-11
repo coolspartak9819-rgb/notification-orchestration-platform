@@ -47,7 +47,8 @@ the local demo; a distributed deployment should replace it with Redis.
 
 `src/store/postgres-store.ts` contains the durable repository adapter and
 `migrations/001_notifications.sql` creates its schema. The demo entrypoint
-intentionally uses memory storage so it can start without external services.
+uses memory storage when `DATABASE_URL` is absent. Set `DATABASE_URL` to switch
+the same API to PostgreSQL; the Compose setup does this automatically.
 
 Create a notification:
 

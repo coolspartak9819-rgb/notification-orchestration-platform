@@ -35,27 +35,27 @@ export class NotificationOrchestrator {
     private readonly options: { maxAttempts?: number; retryBaseMs?: number } = {},
   ) {}
 
-  create(input: CreateNotification): { notification: Notification; duplicate: boolean } {
-    const result = this.store.create(input);
+  async create(input: CreateNotification): Promise<{ notification: Notification; duplicate: boolean }> {
+    const result = await this.store.create(input);
     if (!result.duplicate) this.metrics.accepted += 1;
     return result;
   }
 
-  get(id: string): Notification | undefined { return this.store.get(id); }
+  async get(id: string): Promise<Notification | undefined> { return this.store.get(id); }
 
-  list(query: { tenantId: string; status?: Notification['status']; limit?: number }): Notification[] {
+  async list(query: { tenantId: string; status?: Notification['status']; limit?: number }): Promise<Notification[]> {
     return this.store.list(query);
   }
 
   getMetrics(): DeliveryMetrics { return { ...this.metrics }; }
 
   async deliver(id: string): Promise<Notification> {
-    if (this.active.has(id)) return this.store.get(id) as Notification;
-    const current = this.store.get(id);
+    if (this.active.has(id)) return (await this.store.get(id)) as Notification;
+    const current = await this.store.get(id);
     if (!current) throw new Error('notification not found');
     if (current.status === 'sent' || current.status === 'dead_letter') return current;
     this.active.add(id);
-    const notification = this.store.update(id, (item) => {
+    const notification = await this.store.update(id, (item) => {
       item.status = 'processing';
       item.attempts += 1;
     });
@@ -69,23 +69,23 @@ export class NotificationOrchestrator {
         }
         if (result.accepted) {
           this.metrics.delivered += 1;
-          return this.store.update(id, (item) => {
+          return await this.store.update(id, (item) => {
             item.status = 'sent';
             item.lastProvider = result.provider;
             item.lastError = undefined;
           });
         }
         this.metrics.providerFailures += 1;
-        this.store.update(id, (item) => { item.lastProvider = result.provider; item.lastError = result.error; });
+        await this.store.update(id, (item) => { item.lastProvider = result.provider; item.lastError = result.error; });
       }
       const maxAttempts = this.options.maxAttempts ?? 3;
       if (notification.attempts >= maxAttempts) {
         this.metrics.deadLettered += 1;
-        return this.store.update(id, (item) => { item.status = 'dead_letter'; });
+        return await this.store.update(id, (item) => { item.status = 'dead_letter'; });
       }
       this.metrics.retried += 1;
       const delay = (this.options.retryBaseMs ?? 100) * 2 ** (notification.attempts - 1);
-      const retrying = this.store.update(id, (item) => { item.status = 'retrying'; });
+      const retrying = await this.store.update(id, (item) => { item.status = 'retrying'; });
       setTimeout(() => { void this.deliver(id); }, delay).unref();
       return retrying;
     } finally {

@@ -9,7 +9,7 @@ export class MemoryNotificationStore implements NotificationStore {
   private readonly notifications = new Map<string, Notification>();
   private readonly byIdempotency = new Map<string, string>();
 
-  create(input: CreateNotification): { notification: Notification; duplicate: boolean } {
+  async create(input: CreateNotification): Promise<{ notification: Notification; duplicate: boolean }> {
     const idempotencyId = `${input.tenantId}:${input.idempotencyKey}`;
     const existingId = this.byIdempotency.get(idempotencyId);
     if (existingId) {
@@ -36,7 +36,7 @@ export class MemoryNotificationStore implements NotificationStore {
     return { notification, duplicate: false };
   }
 
-  update(id: string, update: (notification: Notification) => void): Notification {
+  async update(id: string, update: (notification: Notification) => void): Promise<Notification> {
     const notification = this.notifications.get(id);
     if (!notification) throw new Error('notification not found');
     update(notification);
@@ -44,9 +44,9 @@ export class MemoryNotificationStore implements NotificationStore {
     return notification;
   }
 
-  get(id: string): Notification | undefined { return this.notifications.get(id); }
+  async get(id: string): Promise<Notification | undefined> { return this.notifications.get(id); }
 
-  list(query: NotificationQuery): Notification[] {
+  async list(query: NotificationQuery): Promise<Notification[]> {
     const limit = Math.min(Math.max(query.limit ?? 50, 1), 100);
     return [...this.notifications.values()]
       .filter((item) => item.tenantId === query.tenantId && (!query.status || item.status === query.status))

@@ -18,7 +18,7 @@ export function buildApp(orchestrator: NotificationOrchestrator, rateLimiter = n
   app.get<{ Querystring: { status?: NotificationStatus; limit?: string }; Headers: { 'x-tenant-id'?: string } }>('/v1/notifications', async (request, reply) => {
     const tenantId = request.headers['x-tenant-id'];
     if (!tenantId) return reply.code(400).send({ error: 'x-tenant-id is required' });
-    return { items: orchestrator.list({ tenantId, status: request.query.status, limit: Number(request.query.limit ?? 50) }) };
+    return { items: await orchestrator.list({ tenantId, status: request.query.status, limit: Number(request.query.limit ?? 50) }) };
   });
 
   app.post<{ Body: { channel?: Channel; recipient?: string; template?: string; data?: Record<string, unknown> }; Headers: { 'x-tenant-id'?: string; 'idempotency-key'?: string } }>('/v1/notifications', async (request, reply) => {
@@ -30,7 +30,7 @@ export function buildApp(orchestrator: NotificationOrchestrator, rateLimiter = n
     }
     if (!rateLimiter.allow(tenantId)) return reply.code(429).send({ error: 'tenant rate limit exceeded' });
     try {
-      const result = orchestrator.create({ tenantId, idempotencyKey, channel: body.channel, recipient: body.recipient, template: body.template, data: body.data ?? {} });
+      const result = await orchestrator.create({ tenantId, idempotencyKey, channel: body.channel, recipient: body.recipient, template: body.template, data: body.data ?? {} });
       if (!result.duplicate) void orchestrator.deliver(result.notification.id);
       return reply.code(result.duplicate ? 200 : 202).send(result.notification);
     } catch (error) {
@@ -40,7 +40,7 @@ export function buildApp(orchestrator: NotificationOrchestrator, rateLimiter = n
   });
 
   app.get<{ Params: { id: string } }>('/v1/notifications/:id', async (request, reply) => {
-    const notification = orchestrator.get(request.params.id);
+    const notification = await orchestrator.get(request.params.id);
     if (!notification) return reply.code(404).send({ error: 'notification not found' });
     return notification;
   });

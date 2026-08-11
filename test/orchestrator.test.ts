@@ -7,24 +7,24 @@ import { TenantRateLimiter } from '../src/service/rate-limiter.js';
 
 const input = { tenantId: 'tenant-a', idempotencyKey: 'order-1', channel: 'email' as const, recipient: 'user@example.com', template: 'order-confirmed', data: { orderId: 'ord-1' } };
 
-test('same idempotency key returns the original notification', () => {
+test('same idempotency key returns the original notification', async () => {
   const service = new NotificationOrchestrator(new MemoryNotificationStore(), [new MockProvider('email')]);
-  const first = service.create(input);
-  const second = service.create(input);
+  const first = await service.create(input);
+  const second = await service.create(input);
   assert.equal(first.duplicate, false);
   assert.equal(second.duplicate, true);
   assert.equal(first.notification.id, second.notification.id);
 });
 
-test('reusing an idempotency key with different data is rejected', () => {
+test('reusing an idempotency key with different data is rejected', async () => {
   const service = new NotificationOrchestrator(new MemoryNotificationStore(), [new MockProvider('email')]);
-  service.create(input);
-  assert.throws(() => service.create({ ...input, recipient: 'other@example.com' }), IdempotencyConflict);
+  await service.create(input);
+  await assert.rejects(() => service.create({ ...input, recipient: 'other@example.com' }), IdempotencyConflict);
 });
 
 test('provider failure moves notification to retrying', async () => {
   const service = new NotificationOrchestrator(new MemoryNotificationStore(), [new MockProvider('primary', true), new MockProvider('fallback', true)]);
-  const created = service.create(input).notification;
+  const created = (await service.create(input)).notification;
   const result = await service.deliver(created.id);
   assert.equal(result.status, 'retrying');
   assert.equal(result.attempts, 1);
@@ -32,7 +32,7 @@ test('provider failure moves notification to retrying', async () => {
 
 test('fallback provider can accept after primary failure', async () => {
   const service = new NotificationOrchestrator(new MemoryNotificationStore(), [new MockProvider('primary', true), new MockProvider('fallback')]);
-  const created = service.create(input).notification;
+  const created = (await service.create(input)).notification;
   const result = await service.deliver(created.id);
   assert.equal(result.status, 'sent');
 });
@@ -58,7 +58,7 @@ test('failed delivery reaches dead letter after the attempt limit', async () => 
     [new MockProvider('email', true)],
     { maxAttempts: 1 },
   );
-  const created = service.create(input).notification;
+  const created = (await service.create(input)).notification;
   const result = await service.deliver(created.id);
   assert.equal(result.status, 'dead_letter');
   assert.equal(result.attempts, 1);
@@ -72,7 +72,7 @@ test('provider exceptions are converted into retryable failures', async () => {
     [provider],
     { maxAttempts: 2, retryBaseMs: 1 },
   );
-  const created = service.create(input).notification;
+  const created = (await service.create(input)).notification;
   const result = await service.deliver(created.id);
   assert.equal(result.status, 'retrying');
   assert.equal(result.lastError, 'timeout');
@@ -80,8 +80,8 @@ test('provider exceptions are converted into retryable failures', async () => {
 
 test('notifications can be listed within a tenant and filtered by status', async () => {
   const service = new NotificationOrchestrator(new MemoryNotificationStore(), [new MockProvider('email')]);
-  const first = service.create(input).notification;
-  service.create({ ...input, idempotencyKey: 'order-2-confirmation' });
+  const first = (await service.create(input)).notification;
+  await service.create({ ...input, idempotencyKey: 'order-2-confirmation' });
   await service.deliver(first.id);
   const app = buildApp(service);
   const response = await app.inject({ method: 'GET', url: '/v1/notifications?status=sent', headers: { 'x-tenant-id': input.tenantId } });

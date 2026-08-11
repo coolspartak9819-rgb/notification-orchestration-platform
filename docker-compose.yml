@@ -7,4 +7,28 @@ services:
       PORT: 8080
       RETRY_BASE_MS: 250
       MAX_ATTEMPTS: 3
+      DATABASE_URL: postgresql://notifications:notifications@postgres:5432/notifications
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: notifications
+      POSTGRES_PASSWORD: notifications
+      POSTGRES_DB: notifications
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./migrations/001_notifications.sql:/docker-entrypoint-initdb.d/001_notifications.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notifications -d notifications"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:
