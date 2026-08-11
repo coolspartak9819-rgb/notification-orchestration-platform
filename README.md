@@ -17,6 +17,7 @@ The project models a real operational problem: a notification request must be ac
 - Prometheus-compatible `/metrics` endpoint;
 - tenant-scoped notification listing with status filters;
 - tenant request rate limiting with `429` responses;
+- storage port plus a PostgreSQL adapter and migration for durable state;
 - Docker image and local Compose setup;
 - strict TypeScript and tests for the main correctness rules.
 
@@ -43,6 +44,10 @@ List a tenant's notifications with `GET /v1/notifications` and the required
 `X-Tenant-ID` header. Optional query parameters are `status` and `limit`.
 The in-memory rate limiter defaults to 100 requests per tenant per minute for
 the local demo; a distributed deployment should replace it with Redis.
+
+`src/store/postgres-store.ts` contains the durable repository adapter and
+`migrations/001_notifications.sql` creates its schema. The demo entrypoint
+intentionally uses memory storage so it can start without external services.
 
 Create a notification:
 

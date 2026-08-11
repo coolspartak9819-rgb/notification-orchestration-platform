@@ -1,5 +1,5 @@
 import type { CreateNotification, Notification } from '../domain/notification.js';
-import { MemoryNotificationStore } from '../store/memory-store.js';
+import type { NotificationStore } from '../store/notification-store.js';
 
 export type ProviderResult = { accepted: boolean; provider: string; error?: string };
 
@@ -30,7 +30,7 @@ export class NotificationOrchestrator {
   private readonly metrics: DeliveryMetrics = { accepted: 0, delivered: 0, retried: 0, deadLettered: 0, providerFailures: 0 };
 
   constructor(
-    private readonly store: MemoryNotificationStore,
+    private readonly store: NotificationStore,
     private readonly providers: NotificationProvider[],
     private readonly options: { maxAttempts?: number; retryBaseMs?: number } = {},
   ) {}

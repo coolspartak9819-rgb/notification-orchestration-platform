@@ -1,10 +1,11 @@
 import type { CreateNotification, Notification, NotificationStatus } from '../domain/notification.js';
+import type { NotificationQuery, NotificationStore } from './notification-store.js';
 
 export class IdempotencyConflict extends Error {
   constructor() { super('idempotency key was already used with another request'); }
 }
 
-export class MemoryNotificationStore {
+export class MemoryNotificationStore implements NotificationStore {
   private readonly notifications = new Map<string, Notification>();
   private readonly byIdempotency = new Map<string, string>();
 
@@ -45,7 +46,7 @@ export class MemoryNotificationStore {
 
   get(id: string): Notification | undefined { return this.notifications.get(id); }
 
-  list(query: { tenantId: string; status?: NotificationStatus; limit?: number }): Notification[] {
+  list(query: NotificationQuery): Notification[] {
     const limit = Math.min(Math.max(query.limit ?? 50, 1), 100);
     return [...this.notifications.values()]
       .filter((item) => item.tenantId === query.tenantId && (!query.status || item.status === query.status))
