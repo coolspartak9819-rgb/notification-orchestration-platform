@@ -39,9 +39,11 @@ export function buildApp(orchestrator: NotificationOrchestrator, rateLimiter: Ra
     }
   });
 
-  app.get<{ Params: { id: string } }>('/v1/notifications/:id', async (request, reply) => {
+  app.get<{ Params: { id: string }; Headers: { 'x-tenant-id'?: string } }>('/v1/notifications/:id', async (request, reply) => {
+    const tenantId = request.headers['x-tenant-id'];
+    if (!tenantId) return reply.code(400).send({ error: 'x-tenant-id is required' });
     const notification = await orchestrator.get(request.params.id);
-    if (!notification) return reply.code(404).send({ error: 'notification not found' });
+    if (!notification || notification.tenantId !== tenantId) return reply.code(404).send({ error: 'notification not found' });
     return notification;
   });
 

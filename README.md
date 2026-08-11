@@ -16,6 +16,7 @@ The project models a real operational problem: a notification request must be ac
 - provider exception isolation and last failure details;
 - Prometheus-compatible `/metrics` endpoint;
 - tenant-scoped notification listing with status filters;
+- tenant isolation on notification detail reads;
 - tenant request rate limiting with `429` responses;
 - storage port plus a PostgreSQL adapter and migration for durable state;
 - optional Redis-backed rate limiting;

@@ -99,3 +99,16 @@ test('tenant rate limits are enforced with HTTP 429', async () => {
   assert.equal((await app.inject({ method: 'POST', url: '/v1/notifications', headers: { ...headers, 'idempotency-key': 'two' }, payload })).statusCode, 429);
   await app.close();
 });
+
+test('notification details cannot cross tenant boundaries', async () => {
+  const service = new NotificationOrchestrator(new MemoryNotificationStore(), [new MockProvider('email')]);
+  const created = (await service.create(input)).notification;
+  const app = buildApp(service);
+  const response = await app.inject({
+    method: 'GET',
+    url: `/v1/notifications/${created.id}`,
+    headers: { 'x-tenant-id': 'another-tenant' },
+  });
+  assert.equal(response.statusCode, 404);
+  await app.close();
+});
