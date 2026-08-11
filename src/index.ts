@@ -1,5 +1,6 @@
+import './telemetry.js';
 import { buildApp } from './http/app.js';
-import { MockProvider, NotificationOrchestrator } from './service/orchestrator.js';
+import { MockProvider, NotificationOrchestrator, type NotificationProvider } from './service/orchestrator.js';
 import { MemoryNotificationStore } from './store/memory-store.js';
 import { PostgresNotificationStore } from './store/postgres-store.js';
 import { Pool } from 'pg';
@@ -8,13 +9,18 @@ import { connect } from '@nats-io/transport-node';
 import { NatsDeliveryEventPublisher } from './infra/nats-publisher.js';
 import { NoopDeliveryEventPublisher } from './service/event-publisher.js';
 import { RedisTenantRateLimiter, TenantRateLimiter } from './service/rate-limiter.js';
+import { ResendEmailProvider, TwilioSmsProvider } from './providers/http-providers.js';
 
 const pool = process.env.DATABASE_URL ? new Pool({ connectionString: process.env.DATABASE_URL }) : undefined;
 const store = pool ? new PostgresNotificationStore(pool) : new MemoryNotificationStore();
 const redis = process.env.REDIS_URL ? new Redis(process.env.REDIS_URL) : undefined;
 const nats = process.env.NATS_URL ? await connect({ servers: process.env.NATS_URL }) : undefined;
 const eventPublisher = nats ? new NatsDeliveryEventPublisher(nats) : new NoopDeliveryEventPublisher();
-const orchestrator = new NotificationOrchestrator(store, [new MockProvider('primary-email')], {
+const providers: NotificationProvider[] = [];
+if (process.env.RESEND_API_KEY && process.env.RESEND_FROM) providers.push(new ResendEmailProvider(process.env.RESEND_API_KEY, process.env.RESEND_FROM));
+if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM) providers.push(new TwilioSmsProvider(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN, process.env.TWILIO_FROM));
+if (providers.length === 0) providers.push(new MockProvider('primary-demo'));
+const orchestrator = new NotificationOrchestrator(store, providers, {
   maxAttempts: Number(process.env.MAX_ATTEMPTS ?? 3),
   retryBaseMs: Number(process.env.RETRY_BASE_MS ?? 250),
 }, eventPublisher);

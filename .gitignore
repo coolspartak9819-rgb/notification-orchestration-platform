@@ -3,5 +3,6 @@ dist/
 .env
 .env.*
 !.env.example
+*.local.yaml
 coverage/
 npm-debug.log*

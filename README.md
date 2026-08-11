@@ -18,6 +18,9 @@ The project models a real operational problem: a notification request must be ac
 - tenant-scoped notification listing with status filters;
 - tenant isolation on notification detail reads;
 - Kubernetes-friendly liveness (`/healthz`) and readiness (`/readyz`) probes;
+- Resend email and Twilio SMS HTTP providers;
+- a configurable concurrent load scenario;
+- Kubernetes Deployment, Service, HPA, ConfigMap and Secret templates;
 - tenant request rate limiting with `429` responses;
 - storage port plus a PostgreSQL adapter and migration for durable state;
 - optional Redis-backed rate limiting;
@@ -45,6 +48,19 @@ The API listens on `http://localhost:8080`. `GET /healthz` is a liveness check a
 `MAX_ATTEMPTS` and `RETRY_BASE_MS`.
 `GET /readyz` returns `503` while configured PostgreSQL, Redis or NATS
 dependencies are unavailable.
+
+Set `RESEND_API_KEY` and `RESEND_FROM` to enable real email delivery, or
+`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_FROM` for SMS. Without
+provider credentials the service uses a mock provider for local development.
+
+Run a local load scenario against a running API:
+
+```bash
+TOTAL=1000 CONCURRENCY=50 npm run load
+```
+
+Kubernetes templates are in `k8s/`. Copy `secret.example.yaml` to a protected
+Secret workflow and replace the placeholder image with the image built by CI.
 
 List a tenant's notifications with `GET /v1/notifications` and the required
 `X-Tenant-ID` header. Optional query parameters are `status` and `limit`.
