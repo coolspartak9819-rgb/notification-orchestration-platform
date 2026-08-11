@@ -8,6 +8,8 @@ services:
       RETRY_BASE_MS: 250
       MAX_ATTEMPTS: 3
       DATABASE_URL: postgresql://notifications:notifications@postgres:5432/notifications
+      REDIS_URL: redis://redis:6379
+      NATS_URL: nats://nats:4222
     depends_on:
       postgres:
         condition: service_healthy
@@ -29,6 +31,15 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  nats:
+    image: nats:2.10-alpine
+    command: ["-js"]
+    restart: unless-stopped
 
 volumes:
   postgres-data:

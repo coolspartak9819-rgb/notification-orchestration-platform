@@ -1,5 +1,6 @@
 import type { CreateNotification, Notification } from '../domain/notification.js';
 import type { NotificationStore } from '../store/notification-store.js';
+import { NoopDeliveryEventPublisher, type DeliveryEventPublisher } from './event-publisher.js';
 
 export type ProviderResult = { accepted: boolean; provider: string; error?: string };
 
@@ -9,6 +10,7 @@ export type DeliveryMetrics = {
   retried: number;
   deadLettered: number;
   providerFailures: number;
+  eventPublishFailures: number;
 };
 
 export interface NotificationProvider {
@@ -27,17 +29,21 @@ export class MockProvider implements NotificationProvider {
 
 export class NotificationOrchestrator {
   private readonly active = new Set<string>();
-  private readonly metrics: DeliveryMetrics = { accepted: 0, delivered: 0, retried: 0, deadLettered: 0, providerFailures: 0 };
+  private readonly metrics: DeliveryMetrics = { accepted: 0, delivered: 0, retried: 0, deadLettered: 0, providerFailures: 0, eventPublishFailures: 0 };
 
   constructor(
     private readonly store: NotificationStore,
     private readonly providers: NotificationProvider[],
     private readonly options: { maxAttempts?: number; retryBaseMs?: number } = {},
+    private readonly eventPublisher: DeliveryEventPublisher = new NoopDeliveryEventPublisher(),
   ) {}
 
   async create(input: CreateNotification): Promise<{ notification: Notification; duplicate: boolean }> {
     const result = await this.store.create(input);
-    if (!result.duplicate) this.metrics.accepted += 1;
+    if (!result.duplicate) {
+      this.metrics.accepted += 1;
+      void this.publish({ type: 'notification.queued', notification: result.notification });
+    }
     return result;
   }
 
@@ -69,11 +75,13 @@ export class NotificationOrchestrator {
         }
         if (result.accepted) {
           this.metrics.delivered += 1;
-          return await this.store.update(id, (item) => {
+          const sent = await this.store.update(id, (item) => {
             item.status = 'sent';
             item.lastProvider = result.provider;
             item.lastError = undefined;
           });
+          await this.publish({ type: 'notification.sent', notification: sent });
+          return sent;
         }
         this.metrics.providerFailures += 1;
         await this.store.update(id, (item) => { item.lastProvider = result.provider; item.lastError = result.error; });
@@ -81,7 +89,9 @@ export class NotificationOrchestrator {
       const maxAttempts = this.options.maxAttempts ?? 3;
       if (notification.attempts >= maxAttempts) {
         this.metrics.deadLettered += 1;
-        return await this.store.update(id, (item) => { item.status = 'dead_letter'; });
+        const deadLettered = await this.store.update(id, (item) => { item.status = 'dead_letter'; });
+        await this.publish({ type: 'notification.dead_letter', notification: deadLettered });
+        return deadLettered;
       }
       this.metrics.retried += 1;
       const delay = (this.options.retryBaseMs ?? 100) * 2 ** (notification.attempts - 1);
@@ -90,6 +100,14 @@ export class NotificationOrchestrator {
       return retrying;
     } finally {
       this.active.delete(id);
+    }
+  }
+
+  private async publish(event: { type: string; notification: Notification }): Promise<void> {
+    try {
+      await this.eventPublisher.publish(event);
+    } catch {
+      this.metrics.eventPublishFailures += 1;
     }
   }
 }

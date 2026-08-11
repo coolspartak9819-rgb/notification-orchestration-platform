@@ -18,6 +18,8 @@ The project models a real operational problem: a notification request must be ac
 - tenant-scoped notification listing with status filters;
 - tenant request rate limiting with `429` responses;
 - storage port plus a PostgreSQL adapter and migration for durable state;
+- optional Redis-backed rate limiting;
+- optional NATS JetStream delivery event publisher;
 - Docker image and local Compose setup;
 - strict TypeScript and tests for the main correctness rules.
 
@@ -49,6 +51,11 @@ the local demo; a distributed deployment should replace it with Redis.
 `migrations/001_notifications.sql` creates its schema. The demo entrypoint
 uses memory storage when `DATABASE_URL` is absent. Set `DATABASE_URL` to switch
 the same API to PostgreSQL; the Compose setup does this automatically.
+When `REDIS_URL` is set, rate limiting is shared across API replicas. When
+`NATS_URL` is set, `notification.queued`, `notification.sent` and
+`notification.dead_letter` events are published to the
+`notifications.delivery` subject. Create a matching JetStream stream before
+using the publisher in a deployed environment.
 
 Create a notification:
 

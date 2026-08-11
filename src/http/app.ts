@@ -2,9 +2,9 @@ import Fastify from 'fastify';
 import { channels, type Channel, type NotificationStatus } from '../domain/notification.js';
 import { IdempotencyConflict } from '../store/memory-store.js';
 import { NotificationOrchestrator } from '../service/orchestrator.js';
-import { TenantRateLimiter } from '../service/rate-limiter.js';
+import { TenantRateLimiter, type RateLimiter } from '../service/rate-limiter.js';
 
-export function buildApp(orchestrator: NotificationOrchestrator, rateLimiter = new TenantRateLimiter(100, 60_000)) {
+export function buildApp(orchestrator: NotificationOrchestrator, rateLimiter: RateLimiter = new TenantRateLimiter(100, 60_000)) {
   const app = Fastify({ logger: true });
 
   app.get('/healthz', async () => ({ status: 'ok' }));
@@ -28,7 +28,7 @@ export function buildApp(orchestrator: NotificationOrchestrator, rateLimiter = n
     if (!tenantId || !idempotencyKey || !body.channel || !channels.includes(body.channel) || !body.recipient || !body.template) {
       return reply.code(400).send({ error: 'x-tenant-id, idempotency-key, channel, recipient and template are required' });
     }
-    if (!rateLimiter.allow(tenantId)) return reply.code(429).send({ error: 'tenant rate limit exceeded' });
+    if (!await rateLimiter.allow(tenantId)) return reply.code(429).send({ error: 'tenant rate limit exceeded' });
     try {
       const result = await orchestrator.create({ tenantId, idempotencyKey, channel: body.channel, recipient: body.recipient, template: body.template, data: body.data ?? {} });
       if (!result.duplicate) void orchestrator.deliver(result.notification.id);
