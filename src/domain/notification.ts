@@ -12,6 +12,8 @@ export type Notification = {
   data: Record<string, unknown>;
   status: NotificationStatus;
   attempts: number;
+  lastProvider?: string;
+  lastError?: string;
   idempotencyKey: string;
   createdAt: string;
   updatedAt: string;

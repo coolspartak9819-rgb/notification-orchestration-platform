@@ -50,3 +50,29 @@ test('duplicate HTTP request does not launch another delivery', async () => {
   assert.equal(deliveries, 1);
   await app.close();
 });
+
+test('failed delivery reaches dead letter after the attempt limit', async () => {
+  const service = new NotificationOrchestrator(
+    new MemoryNotificationStore(),
+    [new MockProvider('email', true)],
+    { maxAttempts: 1 },
+  );
+  const created = service.create(input).notification;
+  const result = await service.deliver(created.id);
+  assert.equal(result.status, 'dead_letter');
+  assert.equal(result.attempts, 1);
+  assert.equal(service.getMetrics().deadLettered, 1);
+});
+
+test('provider exceptions are converted into retryable failures', async () => {
+  const provider = { name: 'unstable', async send() { throw new Error('timeout'); } };
+  const service = new NotificationOrchestrator(
+    new MemoryNotificationStore(),
+    [provider],
+    { maxAttempts: 2, retryBaseMs: 1 },
+  );
+  const created = service.create(input).notification;
+  const result = await service.deliver(created.id);
+  assert.equal(result.status, 'retrying');
+  assert.equal(result.lastError, 'timeout');
+});

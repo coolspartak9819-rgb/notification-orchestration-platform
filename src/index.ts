@@ -3,7 +3,10 @@ import { MockProvider, NotificationOrchestrator } from './service/orchestrator.j
 import { MemoryNotificationStore } from './store/memory-store.js';
 
 const store = new MemoryNotificationStore();
-const orchestrator = new NotificationOrchestrator(store, [new MockProvider('primary-email')]);
+const orchestrator = new NotificationOrchestrator(store, [new MockProvider('primary-email')], {
+  maxAttempts: Number(process.env.MAX_ATTEMPTS ?? 3),
+  retryBaseMs: Number(process.env.RETRY_BASE_MS ?? 250),
+});
 const app = buildApp(orchestrator);
 const port = Number(process.env.PORT ?? 8080);
 

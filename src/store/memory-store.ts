@@ -14,7 +14,8 @@ export class MemoryNotificationStore {
     if (existingId) {
       const existing = this.notifications.get(existingId);
       if (!existing) throw new Error('idempotency index is inconsistent');
-      if (existing.channel !== input.channel || existing.recipient !== input.recipient || existing.template !== input.template) {
+      if (JSON.stringify({ channel: existing.channel, recipient: existing.recipient, template: existing.template, data: existing.data }) !==
+        JSON.stringify({ channel: input.channel, recipient: input.recipient, template: input.template, data: input.data })) {
         throw new IdempotencyConflict();
       }
       return { notification: existing, duplicate: true };

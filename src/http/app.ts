@@ -8,6 +8,12 @@ export function buildApp(orchestrator: NotificationOrchestrator) {
 
   app.get('/healthz', async () => ({ status: 'ok' }));
 
+  app.get('/metrics', async (_request, reply) => {
+    const metrics = orchestrator.getMetrics();
+    const lines = Object.entries(metrics).map(([name, value]) => `notification_${name}_total ${value}`);
+    return reply.type('text/plain').send(`${lines.join('\n')}\n`);
+  });
+
   app.post<{ Body: { channel?: Channel; recipient?: string; template?: string; data?: Record<string, unknown> }; Headers: { 'x-tenant-id'?: string; 'idempotency-key'?: string } }>('/v1/notifications', async (request, reply) => {
     const tenantId = request.headers['x-tenant-id'];
     const idempotencyKey = request.headers['idempotency-key'];
