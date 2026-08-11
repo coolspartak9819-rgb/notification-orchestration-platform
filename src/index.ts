@@ -19,7 +19,17 @@ const orchestrator = new NotificationOrchestrator(store, [new MockProvider('prim
   retryBaseMs: Number(process.env.RETRY_BASE_MS ?? 250),
 }, eventPublisher);
 const rateLimiter = redis ? new RedisTenantRateLimiter(redis, 100, 60_000) : new TenantRateLimiter(100, 60_000);
-const app = buildApp(orchestrator, rateLimiter);
+const readiness = async () => {
+  try {
+    if (pool) await pool.query('SELECT 1');
+    if (redis && (await redis.ping()) !== 'PONG') return false;
+    if (nats) await nats.flush();
+    return true;
+  } catch {
+    return false;
+  }
+};
+const app = buildApp(orchestrator, rateLimiter, readiness);
 const port = Number(process.env.PORT ?? 8080);
 
 await app.listen({ host: '0.0.0.0', port });

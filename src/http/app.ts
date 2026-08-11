@@ -4,10 +4,20 @@ import { IdempotencyConflict } from '../store/memory-store.js';
 import { NotificationOrchestrator } from '../service/orchestrator.js';
 import { TenantRateLimiter, type RateLimiter } from '../service/rate-limiter.js';
 
-export function buildApp(orchestrator: NotificationOrchestrator, rateLimiter: RateLimiter = new TenantRateLimiter(100, 60_000)) {
+export function buildApp(
+  orchestrator: NotificationOrchestrator,
+  rateLimiter: RateLimiter = new TenantRateLimiter(100, 60_000),
+  readiness: () => Promise<boolean> = async () => true,
+) {
   const app = Fastify({ logger: true });
 
   app.get('/healthz', async () => ({ status: 'ok' }));
+
+  app.get('/readyz', async (_request, reply) => {
+    const ready = await readiness();
+    if (!ready) return reply.code(503).send({ status: 'not_ready' });
+    return { status: 'ready' };
+  });
 
   app.get('/metrics', async (_request, reply) => {
     const metrics = orchestrator.getMetrics();

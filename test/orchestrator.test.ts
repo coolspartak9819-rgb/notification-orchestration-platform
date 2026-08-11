@@ -112,3 +112,12 @@ test('notification details cannot cross tenant boundaries', async () => {
   assert.equal(response.statusCode, 404);
   await app.close();
 });
+
+test('readiness endpoint returns 503 when a dependency is unavailable', async () => {
+  const service = new NotificationOrchestrator(new MemoryNotificationStore(), [new MockProvider('email')]);
+  const app = buildApp(service, undefined, async () => false);
+  const response = await app.inject({ method: 'GET', url: '/readyz' });
+  assert.equal(response.statusCode, 503);
+  assert.deepEqual(response.json(), { status: 'not_ready' });
+  await app.close();
+});
