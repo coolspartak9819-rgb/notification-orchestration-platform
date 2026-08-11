@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { MockProvider, NotificationOrchestrator } from '../src/service/orchestrator.js';
 import { MemoryNotificationStore, IdempotencyConflict } from '../src/store/memory-store.js';
 import { buildApp } from '../src/http/app.js';
+import { TenantRateLimiter } from '../src/service/rate-limiter.js';
 
 const input = { tenantId: 'tenant-a', idempotencyKey: 'order-1', channel: 'email' as const, recipient: 'user@example.com', template: 'order-confirmed', data: { orderId: 'ord-1' } };
 
@@ -75,4 +76,26 @@ test('provider exceptions are converted into retryable failures', async () => {
   const result = await service.deliver(created.id);
   assert.equal(result.status, 'retrying');
   assert.equal(result.lastError, 'timeout');
+});
+
+test('notifications can be listed within a tenant and filtered by status', async () => {
+  const service = new NotificationOrchestrator(new MemoryNotificationStore(), [new MockProvider('email')]);
+  const first = service.create(input).notification;
+  service.create({ ...input, idempotencyKey: 'order-2-confirmation' });
+  await service.deliver(first.id);
+  const app = buildApp(service);
+  const response = await app.inject({ method: 'GET', url: '/v1/notifications?status=sent', headers: { 'x-tenant-id': input.tenantId } });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().items.length, 1);
+  await app.close();
+});
+
+test('tenant rate limits are enforced with HTTP 429', async () => {
+  const service = new NotificationOrchestrator(new MemoryNotificationStore(), [new MockProvider('email')]);
+  const app = buildApp(service, new TenantRateLimiter(1, 60_000));
+  const headers = { 'x-tenant-id': 'tenant-limited', 'idempotency-key': 'one' };
+  const payload = { channel: 'email', recipient: 'user@example.com', template: 'welcome' };
+  assert.equal((await app.inject({ method: 'POST', url: '/v1/notifications', headers, payload })).statusCode, 202);
+  assert.equal((await app.inject({ method: 'POST', url: '/v1/notifications', headers: { ...headers, 'idempotency-key': 'two' }, payload })).statusCode, 429);
+  await app.close();
 });

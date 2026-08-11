@@ -15,6 +15,8 @@ The project models a real operational problem: a notification request must be ac
 - dead-letter state after exhausted delivery attempts;
 - provider exception isolation and last failure details;
 - Prometheus-compatible `/metrics` endpoint;
+- tenant-scoped notification listing with status filters;
+- tenant request rate limiting with `429` responses;
 - Docker image and local Compose setup;
 - strict TypeScript and tests for the main correctness rules.
 
@@ -36,6 +38,11 @@ docker compose up --build
 The API listens on `http://localhost:8080`. `GET /healthz` is a liveness check and
 `GET /metrics` exposes delivery counters. Retry behaviour is controlled by
 `MAX_ATTEMPTS` and `RETRY_BASE_MS`.
+
+List a tenant's notifications with `GET /v1/notifications` and the required
+`X-Tenant-ID` header. Optional query parameters are `status` and `limit`.
+The in-memory rate limiter defaults to 100 requests per tenant per minute for
+the local demo; a distributed deployment should replace it with Redis.
 
 Create a notification:
 

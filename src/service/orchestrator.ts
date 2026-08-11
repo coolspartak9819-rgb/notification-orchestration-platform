@@ -43,6 +43,10 @@ export class NotificationOrchestrator {
 
   get(id: string): Notification | undefined { return this.store.get(id); }
 
+  list(query: { tenantId: string; status?: Notification['status']; limit?: number }): Notification[] {
+    return this.store.list(query);
+  }
+
   getMetrics(): DeliveryMetrics { return { ...this.metrics }; }
 
   async deliver(id: string): Promise<Notification> {
